@@ -39,6 +39,8 @@ function formatDuration(sec) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 function escapeHtml(s = "") { return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+// прокси картинок через localhost (браузер может не тянуть Google CDN напрямую)
+function proxify(url) { return url ? `/img?u=${encodeURIComponent(url)}` : ""; }
 function initials(name = "?") { return name.trim().charAt(0).toUpperCase() || "?"; }
 
 let toastTimer;
@@ -60,7 +62,7 @@ function videoCard(v) {
   return `
   <div class="card" data-id="${v.id}">
     <div class="thumb-wrap">
-      <img loading="lazy" src="${v.thumbnail || ""}" alt="" />
+      <img loading="lazy" src="${proxify(v.thumbnail)}" alt="" />
       ${v.duration != null ? `<span class="duration">${formatDuration(v.duration)}</span>` : ""}
     </div>
     <div class="card-body">
@@ -227,17 +229,17 @@ async function renderLiked() {
 }
 
 async function renderSubscriptions() {
-  view.innerHTML = `<div class="section-title">Любимые каналы</div>` + skeletonGrid(6);
+  view.innerHTML = `<div class="section-title">Подписки</div>` + skeletonGrid(6);
   const { channels } = await api("/api/subscriptions");
   if (!channels.length) {
-    view.innerHTML = `<div class="section-title">Любимые каналы</div><div class="empty">Каналы появятся, когда ты начнёшь смотреть видео.</div>`;
+    view.innerHTML = `<div class="section-title">Подписки</div><div class="empty">Каналы появятся, когда ты начнёшь смотреть видео.</div>`;
     return;
   }
-  view.innerHTML = `<div class="section-title">Любимые каналы</div>
+  view.innerHTML = `<div class="section-title">Подписки</div>
     <div class="grid">${channels.map((c) => `
       <div class="card" data-search="${escapeHtml(c.title)}">
         <div style="display:flex;gap:12px;align-items:center">
-          ${c.thumbnail ? `<img class="ch-avatar" style="width:56px;height:56px" src="${c.thumbnail}">` : `<div class="ch-avatar" style="width:56px;height:56px">${initials(c.title)}</div>`}
+          ${c.thumbnail ? `<img class="ch-avatar" style="width:56px;height:56px" src="${proxify(c.thumbnail)}">` : `<div class="ch-avatar" style="width:56px;height:56px">${initials(c.title)}</div>`}
           <div><div style="font-weight:600">${escapeHtml(c.title)}</div>
           <div class="card-sub">${c.subscribers ? formatViews(c.subscribers).replace("просмотров", "подписчиков") : ""}</div></div>
         </div>
@@ -276,7 +278,7 @@ async function renderWatch(id) {
 
   document.getElementById("relatedList").innerHTML = (related || []).map((r) => `
     <div class="related-card" data-id="${r.id}">
-      <div class="related-thumb"><img loading="lazy" src="${r.thumbnail}">${r.duration != null ? `<span class="duration">${formatDuration(r.duration)}</span>` : ""}</div>
+      <div class="related-thumb"><img loading="lazy" src="${proxify(r.thumbnail)}">${r.duration != null ? `<span class="duration">${formatDuration(r.duration)}</span>` : ""}</div>
       <div class="related-meta"><div class="t">${escapeHtml(r.title)}</div>
       <div class="c">${escapeHtml(r.channelTitle || "")}</div><div class="c">${[formatViews(r.views), timeAgo(r.publishedAt)].filter(Boolean).join(" · ")}</div></div>
     </div>`).join("");
@@ -366,7 +368,7 @@ async function loadSidebarSubs() {
     const title = channels.some((c) => c.subscribed) ? "Подписки" : "Любимые каналы";
     box.innerHTML = `<div class="nav-title">${title}</div>` + channels.slice(0, 10).map((c) => `
       <a class="nav-item" data-search="${escapeHtml(c.title)}" href="#">
-        ${c.thumbnail ? `<img src="${c.thumbnail}">` : `<div class="ch-avatar" style="width:24px;height:24px;font-size:11px">${initials(c.title)}</div>`}
+        ${c.thumbnail ? `<img src="${proxify(c.thumbnail)}">` : `<div class="ch-avatar" style="width:24px;height:24px;font-size:11px">${initials(c.title)}</div>`}
         <span>${escapeHtml(c.title)}</span></a>`).join("");
   } catch { /* нет ключа — игнор */ }
 }

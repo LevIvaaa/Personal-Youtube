@@ -181,6 +181,39 @@ app.post("/api/profile/reset", (req, res) => {
   res.json({ ok: true });
 });
 
+// Прокси картинок: браузер может не тянуть Google CDN напрямую
+// (блокировщик/расширение/сеть), поэтому качаем превью/аватарки на
+// сервере и отдаём с localhost — грузится всегда.
+const imgMemCache = new Map(); // url -> { buf, type, at }
+app.get("/img", async (req, res) => {
+  const u = req.query.u;
+  if (!u) return res.status(400).end();
+  let url;
+  try { url = new URL(u); } catch { return res.status(400).end(); }
+  const allowed = /(^|\.)(ggpht\.com|googleusercontent\.com|ytimg\.com|youtube\.com)$/i.test(url.hostname);
+  if (!allowed || url.protocol !== "https:") return res.status(403).end();
+
+  const hit = imgMemCache.get(u);
+  if (hit && Date.now() - hit.at < 1000 * 60 * 60 * 12) {
+    res.set("Content-Type", hit.type);
+    res.set("Cache-Control", "public, max-age=86400");
+    return res.send(hit.buf);
+  }
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return res.status(r.status).end();
+    const buf = Buffer.from(await r.arrayBuffer());
+    const type = r.headers.get("content-type") || "image/jpeg";
+    if (imgMemCache.size > 600) imgMemCache.clear();
+    imgMemCache.set(u, { buf, type, at: Date.now() });
+    res.set("Content-Type", type);
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  } catch {
+    res.status(502).end();
+  }
+});
+
 // SPA fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
