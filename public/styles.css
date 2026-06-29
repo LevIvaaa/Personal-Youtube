@@ -193,5 +193,16 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .danger-btn { background: transparent; border: 1px solid #5c1b1b; color: #ff8a8a; padding: 10px 16px; border-radius: 8px; cursor: pointer; }
 .danger-btn:hover { background: #2a0d0d; }
 
+#subsInput { width: 100%; min-height: 90px; resize: vertical; background: #121212; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); font-family: inherit; font-size: 13px; }
+#subsFile { background: #121212; border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--text-dim); font-size: 12px; }
+#importSubsBtn { background: var(--blue); border: 0; color: #0f0f0f; font-weight: 600; padding: 0 16px; border-radius: 8px; cursor: pointer; }
+
+/* infinite scroll */
+.feed-sentinel { height: 1px; }
+.feed-loader { display: flex; justify-content: center; padding: 28px 0; color: var(--text-dim); gap: 10px; align-items: center; }
+.spinner { width: 22px; height: 22px; border: 3px solid #444; border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.feed-end { text-align: center; color: var(--text-dim); padding: 24px 0; }
+
 /* toast */
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #e5e5e5; color: #0f0f0f; padding: 12px 18px; border-radius: 8px; font-weight: 500; z-index: 200; box-shadow: 0 4px 20px #0008; }

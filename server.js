@@ -31,11 +31,12 @@ app.get("/api/status", (req, res) => {
   res.json({ configured: yt.isConfigured(), region: process.env.REGION_CODE || "RU" });
 });
 
-// Персональная лента главной
+// Персональная бесконечная лента (постранично через session)
 app.get("/api/feed", h(async (req, res) => {
-  const limit = Math.min(48, Number(req.query.limit) || 32);
-  const items = await rec.buildFeed({ limit });
-  res.json({ items });
+  const limit = Math.min(24, Number(req.query.limit) || 16);
+  const sessionId = req.query.session || null;
+  const result = await rec.feedPage({ sessionId, limit });
+  res.json(result);
 }));
 
 // Поиск
@@ -63,13 +64,81 @@ app.get("/api/video/:id", h(async (req, res) => {
   res.json({ video, related });
 }));
 
-// Подписки / любимые каналы (по аффинити)
+// Подписки (импортированные) либо любимые каналы (по аффинити)
 app.get("/api/subscriptions", h(async (req, res) => {
+  const subs = profile.getSubscriptions();
+  if (subs.length) {
+    const missing = subs.filter((s) => !s.thumbnail).map((s) => s.id);
+    if (missing.length) {
+      try {
+        const info = await yt.channelsInfo(missing);
+        subs.forEach((s) => { if (info[s.id]) s.thumbnail = info[s.id].thumbnail; });
+      } catch { /* без аватарок тоже ок */ }
+    }
+    return res.json({ channels: subs.map((s) => ({ id: s.id, title: s.title, thumbnail: s.thumbnail, subscribed: true })) });
+  }
   const top = profile.topChannels(12);
   const info = await yt.channelsInfo(top.map((c) => c.id));
   const channels = top.map((c) => ({ ...c, ...(info[c.id] || {}) })).filter((c) => c.title);
   res.json({ channels });
 }));
+
+// Импорт подписок: построчно — Takeout subscriptions.csv ИЛИ @handle / ссылка / название
+app.post("/api/subscriptions/import", h(async (req, res) => {
+  const raw = String(req.body?.raw || "").trim();
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  const directIds = []; // из Takeout CSV — id уже есть, API не нужен
+  const toResolve = []; // @handle / url / название — резолвим через API
+
+  for (const line of lines) {
+    if (/^channel\s*id/i.test(line)) continue; // заголовок CSV
+    if (line.includes(",")) {
+      const cells = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const idCell = cells.find((c) => /^UC[\w-]{20,}$/.test(c));
+      if (idCell) {
+        directIds.push({ id: idCell, title: cells[cells.length - 1] || idCell });
+        continue;
+      }
+    }
+    toResolve.push(line);
+  }
+
+  const resolved = [];
+  for (const ref of toResolve.slice(0, 100)) {
+    const ch = await yt.resolveChannel(ref);
+    if (ch?.id) resolved.push(ch);
+  }
+
+  // подтянем аватарки/названия пачками (дёшево: 1 ед. за 50 каналов)
+  const allIds = [...new Set([...directIds.map((d) => d.id), ...resolved.map((r) => r.id)])];
+  let info = {};
+  for (let i = 0; i < allIds.length; i += 50) {
+    try { Object.assign(info, await yt.channelsInfo(allIds.slice(i, i + 50))); } catch { /* ignore */ }
+  }
+
+  const seen = new Set();
+  const channels = [];
+  for (const d of [...directIds, ...resolved]) {
+    if (!d.id || seen.has(d.id)) continue;
+    seen.add(d.id);
+    const merged = {
+      id: d.id,
+      title: info[d.id]?.title || d.title || d.id,
+      thumbnail: info[d.id]?.thumbnail || d.thumbnail || "",
+    };
+    profile.recordEvent({ type: "subscribe", channel: merged });
+    channels.push(merged);
+  }
+
+  res.json({ imported: channels.length, requested: lines.length, unresolved: toResolve.length - resolved.length, channels });
+}));
+
+// Отписаться
+app.post("/api/subscriptions/remove", (req, res) => {
+  profile.recordEvent({ type: "unsubscribe", channelId: req.body?.channelId });
+  res.json({ ok: true });
+});
 
 // История просмотров
 app.get("/api/history", (req, res) => {
@@ -91,6 +160,7 @@ app.get("/api/profile", (req, res) => {
       history: p.watchHistory.length,
       likes: p.likes.length,
       searches: p.searches.length,
+      subscriptions: Object.keys(p.subscriptions || {}).length,
     },
   });
 });

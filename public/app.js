@@ -106,6 +106,8 @@ async function router() {
   const [, route = "home", arg = ""] = hash.match(/^\/([^/]*)\/?(.*)$/) || [];
   const name = route === "" ? "home" : route;
 
+  if (name !== "home") teardownFeed(); // у домашней ленты свой observer
+
   document.querySelectorAll(".nav-item").forEach((el) => el.classList.toggle("active", el.dataset.route === name));
   chipsEl.style.display = ["home", "search", "trending"].includes(name) ? "flex" : "none";
 
@@ -129,13 +131,61 @@ function renderChips() {
   chipsEl.innerHTML = CHIPS.map((c) => `<div class="chip ${c === activeChip ? "active" : ""}" data-chip="${c}">${c}</div>`).join("");
 }
 
+// ---------- бесконечная лента ----------
+let feed = { session: null, loading: false, observer: null, gridEl: null, emptyStreak: 0 };
+
+function teardownFeed() {
+  if (feed.observer) { feed.observer.disconnect(); feed.observer = null; }
+  feed = { session: null, loading: false, observer: null, gridEl: null, emptyStreak: 0 };
+}
+
 async function renderHome() {
   renderChips();
-  view.innerHTML = skeletonGrid();
   if (activeChip !== "Все") return renderSearchInline(activeChip);
-  const { items } = await api("/api/feed?limit=40");
-  cacheVideos(items);
-  view.innerHTML = grid(items);
+
+  teardownFeed();
+  view.innerHTML = `<div class="grid" id="feedGrid"></div>
+    <div class="feed-loader" id="feedLoader"><span class="spinner"></span> Подбираем под тебя…</div>
+    <div class="feed-sentinel" id="feedSentinel"></div>`;
+  feed.gridEl = document.getElementById("feedGrid");
+
+  await loadFeedPage(); // первая страница
+
+  // подгрузка при прокрутке к концу
+  const sentinel = document.getElementById("feedSentinel");
+  feed.observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) loadFeedPage();
+  }, { rootMargin: "1200px 0px" }); // начинаем грузить заранее
+  feed.observer.observe(sentinel);
+}
+
+async function loadFeedPage() {
+  if (feed.loading) return;
+  feed.loading = true;
+  const loader = document.getElementById("feedLoader");
+  if (loader) loader.style.display = "flex";
+  try {
+    const q = feed.session ? `&session=${encodeURIComponent(feed.session)}` : "";
+    const { items, session } = await api(`/api/feed?limit=12${q}`);
+    feed.session = session;
+    cacheVideos(items);
+    if (!feed.gridEl) return;
+    if (items.length === 0) {
+      feed.emptyStreak++;
+      // лента «бесконечная»: пара пустых ответов подряд = источники иссякли
+      if (feed.emptyStreak >= 2) {
+        if (loader) loader.outerHTML = `<div class="feed-end">Пока всё. Посмотри/лайкни что-нибудь — и появится ещё.</div>`;
+        if (feed.observer) feed.observer.disconnect();
+      }
+      return;
+    }
+    feed.emptyStreak = 0;
+    feed.gridEl.insertAdjacentHTML("beforeend", items.map(videoCard).join(""));
+  } catch (err) {
+    if (err.code === "NO_API_KEY") { apiBanner.classList.remove("hidden"); teardownFeed(); }
+  } finally {
+    feed.loading = false;
+  }
 }
 
 async function renderSearchInline(q) {
@@ -235,7 +285,7 @@ async function renderWatch(id) {
     const btn = e.currentTarget;
     btn.classList.toggle("active");
     const liked = btn.classList.contains("active");
-    post({ type: liked ? "like" : "unlike", video: v, videoId: id });
+    post({ type: liked ? "like" : "unlike", video: v, videoId: id }).then(() => loadSidebarSubs());
     toast(liked ? "Добавлено в понравившиеся" : "Убрано из понравившихся");
   });
   document.getElementById("dislikeBtn").addEventListener("click", () => {
@@ -249,6 +299,8 @@ let currentWatch = null;
 function watchStart(video) {
   flushWatch();
   currentWatch = { video, start: Date.now() };
+  // реальное время: запись падает в историю сразу при открытии
+  post({ type: "watch", video, watchSeconds: 0 }).then(() => loadSidebarSubs());
 }
 function flushWatch() {
   if (!currentWatch) return;
@@ -311,7 +363,8 @@ async function loadSidebarSubs() {
     const { channels } = await api("/api/subscriptions");
     const box = document.getElementById("subsList");
     if (!channels.length) return;
-    box.innerHTML = `<div class="nav-title">Любимые каналы</div>` + channels.slice(0, 8).map((c) => `
+    const title = channels.some((c) => c.subscribed) ? "Подписки" : "Любимые каналы";
+    box.innerHTML = `<div class="nav-title">${title}</div>` + channels.slice(0, 10).map((c) => `
       <a class="nav-item" data-search="${escapeHtml(c.title)}" href="#">
         ${c.thumbnail ? `<img src="${c.thumbnail}">` : `<div class="ch-avatar" style="width:24px;height:24px;font-size:11px">${initials(c.title)}</div>`}
         <span>${escapeHtml(c.title)}</span></a>`).join("");
@@ -339,7 +392,7 @@ async function renderSettings() {
     ? data.channels.map((c) => `<span class="tag">${escapeHtml(c.title || c.id)} <span class="w">${c.weight.toFixed(1)}</span></span>`).join("")
     : `<span class="card-sub">Каналы появятся по мере просмотра.</span>`;
   document.getElementById("profileStats").innerHTML =
-    `<span>История: ${data.counts.history}</span><span>Лайки: ${data.counts.likes}</span><span>Поисков: ${data.counts.searches}</span>`;
+    `<span>Подписки: ${data.counts.subscriptions ?? 0}</span><span>История: ${data.counts.history}</span><span>Лайки: ${data.counts.likes}</span><span>Поисков: ${data.counts.searches}</span>`;
 }
 
 document.getElementById("addInterestForm").addEventListener("submit", async (e) => {
@@ -358,6 +411,38 @@ document.getElementById("interestTags").addEventListener("click", async (e) => {
   if (!btn) return;
   await post({ type: "removeInterest", term: btn.dataset.removeInterest });
   renderSettings();
+});
+
+document.getElementById("importSubsBtn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  const inputEl = document.getElementById("subsInput");
+  const fileEl = document.getElementById("subsFile");
+  const resEl = document.getElementById("importResult");
+
+  let raw = inputEl.value.trim();
+  if (fileEl.files && fileEl.files[0]) {
+    try { raw = (raw + "\n" + (await fileEl.files[0].text())).trim(); } catch { /* ignore */ }
+  }
+  if (!raw) { toast("Вставь подписки или выбери файл"); return; }
+
+  btn.disabled = true;
+  resEl.textContent = "Импортирую… (для @handle/названий это может занять время)";
+  try {
+    const r = await fetch("/api/subscriptions/import", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ raw }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message || "ошибка");
+    resEl.textContent = `Готово: добавлено ${d.imported} каналов${d.unresolved ? `, не распознано ${d.unresolved}` : ""}.`;
+    inputEl.value = ""; fileEl.value = "";
+    loadSidebarSubs();
+    renderSettings();
+    toast(`Подписки перенесены: ${d.imported}`);
+  } catch (err) {
+    resEl.textContent = "Ошибка импорта: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 document.getElementById("resetProfile").addEventListener("click", async () => {

@@ -104,6 +104,20 @@
     </div>
 
     <div class="settings-section">
+      <h3>Перенести подписки с YouTube</h3>
+      <p class="modal-sub" style="margin:0 0 10px">
+        Вставь <code>subscriptions.csv</code> из <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a>
+        (YouTube → подписки), либо по одному в строке: <code>@handle</code>, ссылку на канал или его название.
+      </p>
+      <textarea id="subsInput" placeholder="@mrbeast&#10;https://www.youtube.com/@veritasium&#10;UCxxxxxxxx... (или содержимое subscriptions.csv)"></textarea>
+      <div class="interest-add" style="margin-top:10px">
+        <input type="file" id="subsFile" accept=".csv,.txt" style="flex:1" />
+        <button type="button" id="importSubsBtn">Импортировать</button>
+      </div>
+      <div id="importResult" class="card-sub" style="margin-top:10px"></div>
+    </div>
+
+    <div class="settings-section">
       <h3>Любимые каналы</h3>
       <div class="tag-list" id="channelTags"></div>
     </div>
