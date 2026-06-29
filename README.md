@@ -39,6 +39,30 @@ npm start
 - `.env` (ключ API) и `data/profile.json` (твоя история/лайки) **не коммитятся** — см. `.gitignore`.
 - Видео отдаёт сам YouTube (встроенный iframe), мы их не храним.
 
+## Docker
+
+```bash
+docker build -t personal-youtube .
+docker run -p 3000:3000 -e YOUTUBE_API_KEY=твой_ключ \
+  -v "$(pwd)/data:/app/data" personal-youtube
+```
+
+Готовый образ публикуется CI в GitHub Container Registry:
+
+```bash
+docker run -p 3000:3000 -e YOUTUBE_API_KEY=твой_ключ \
+  ghcr.io/levivaaa/personal-youtube:latest
+```
+
+## CI/CD
+
+GitHub Actions (`.github/workflows/`):
+
+- **CI** (`ci.yml`) — на каждый push/PR в `main`: `npm ci`, проверка синтаксиса всех JS,
+  смоук-тест (сервер поднимается и `/api/status` + главная отвечают). Матрица Node 18 и 20.
+- **CD** (`docker.yml`) — на push в `main` и теги `v*`: сборка Docker-образа и публикация
+  в `ghcr.io` (тег `latest` для main, `vX.Y.Z` для релизов, плюс короткий SHA).
+
 ## Структура
 
 ```
