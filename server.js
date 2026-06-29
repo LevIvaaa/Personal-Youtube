@@ -142,7 +142,7 @@ app.post("/api/subscriptions/remove", (req, res) => {
 
 // История просмотров
 app.get("/api/history", (req, res) => {
-  res.json({ items: profile.getProfile().watchHistory.slice(0, 100) });
+  res.json({ items: profile.getProfile().watchHistory.slice(0, 300) });
 });
 
 // Понравившиеся

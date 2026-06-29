@@ -15,6 +15,11 @@ toke for github.txt:Zone.Identifier
 data/profile.json
 data/cache/
 
+# Google Takeout exports (private personal data — never commit)
+takeout-*/
+**/Takeout/
+*.takeout
+
 # Logs & OS
 *.log
 .DS_Store
