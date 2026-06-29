@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Secrets — NEVER commit
+.env
+.env.local
+*.env
+
+# GitHub token file (do not commit under any circumstances)
+toke for github.txt
+toke for github.txt:Zone.Identifier
+*.Zone.Identifier
+
+# Local personalization data (your private watch history / profile)
+data/profile.json
+data/cache/
+
+# Logs & OS
+*.log
+.DS_Store
+npm-debug.log*
