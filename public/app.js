@@ -109,6 +109,7 @@ async function router() {
   const name = route === "" ? "home" : route;
 
   if (name !== "home") teardownFeed(); // у домашней ленты свой observer
+  if (name !== "watch") destroyPlayer(); // освобождаем плеер при уходе со страницы
 
   document.querySelectorAll(".nav-item").forEach((el) => el.classList.toggle("active", el.dataset.route === name));
   chipsEl.style.display = ["home", "search", "trending"].includes(name) ? "flex" : "none";
@@ -214,11 +215,56 @@ async function renderTrending() {
   view.innerHTML = `<div class="section-title">В тренде</div>` + grid(items);
 }
 
+let historyItems = [];
+let historyTab = "all";
+
+function shortCard(v) {
+  return `<div class="short-card" data-id="${v.id}">
+    <div class="short-thumb"><img loading="lazy" src="${proxify(v.thumbnail)}" alt=""></div>
+    <div class="short-title">${escapeHtml(v.title || "")}</div>
+    <div class="short-ch">${escapeHtml(v.channelTitle || "")}</div>
+  </div>`;
+}
+
+function renderHistoryTab() {
+  const box = document.getElementById("histContent");
+  if (!box) return;
+  const shorts = historyItems.filter((v) => v.isShort);
+  const videos = historyItems.filter((v) => !v.isShort);
+
+  if (historyTab === "video") {
+    box.innerHTML = grid(videos);
+  } else if (historyTab === "shorts") {
+    box.innerHTML = shorts.length
+      ? `<div class="shorts-grid">${shorts.map(shortCard).join("")}</div>`
+      : `<div class="empty">Shorts в истории пока нет.</div>`;
+  } else {
+    const shelf = shorts.length
+      ? `<div class="shorts-shelf"><h3 class="shelf-title">⚡ Shorts</h3><div class="shorts-row">${shorts.map(shortCard).join("")}</div></div>`
+      : "";
+    box.innerHTML = shelf + grid(videos);
+  }
+}
+
 async function renderHistory() {
-  view.innerHTML = `<div class="section-title">История просмотров</div>` + skeletonGrid(6);
+  view.innerHTML = `<div class="section-title">История просмотров</div>
+    <div class="tabs" id="histTabs">
+      <button class="tab ${historyTab === "all" ? "active" : ""}" data-tab="all">Все</button>
+      <button class="tab ${historyTab === "video" ? "active" : ""}" data-tab="video">Видео</button>
+      <button class="tab ${historyTab === "shorts" ? "active" : ""}" data-tab="shorts">Shorts</button>
+    </div>
+    <div id="histContent">${skeletonGrid(8)}</div>`;
   const { items } = await api("/api/history");
   cacheVideos(items);
-  view.innerHTML = `<div class="section-title">История просмотров</div>` + grid(items);
+  historyItems = items;
+  renderHistoryTab();
+  document.getElementById("histTabs").addEventListener("click", (e) => {
+    const t = e.target.closest(".tab");
+    if (!t) return;
+    historyTab = t.dataset.tab;
+    document.querySelectorAll("#histTabs .tab").forEach((x) => x.classList.toggle("active", x === t));
+    renderHistoryTab();
+  });
 }
 
 async function renderLiked() {
@@ -250,10 +296,26 @@ async function renderWatch(id) {
   chipsEl.style.display = "none";
   const known = videoCache.get(id);
   view.innerHTML = `<div class="watch">
-    <div><div class="player-wrap"><iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
-    <div id="watchInfo">${known ? `<div class="watch-title">${escapeHtml(known.title)}</div>` : ""}</div></div>
+    <div>
+      <div class="player-wrap" id="playerWrap">
+        <div id="ytplayer"></div>
+        <div class="vctrl" id="vctrl" style="display:none">
+          <div class="vbar" id="vbar"><div class="vbar-fill" id="vfill"></div><div class="vbar-knob" id="vknob"></div></div>
+          <div class="vrow">
+            <button class="vbtn" id="vplay" title="Пауза/воспроизведение">▶</button>
+            <button class="vbtn" id="vmute" title="Звук">🔊</button>
+            <span class="vtime" id="vtime">0:00 / 0:00</span>
+            <span class="vspacer"></span>
+            <button class="vbtn" id="vfull" title="Во весь экран">⛶</button>
+          </div>
+        </div>
+      </div>
+      <div id="watchInfo">${known ? `<div class="watch-title">${escapeHtml(known.title)}</div>` : ""}</div>
+    </div>
     <div class="related"><h3>Похожие видео</h3><div id="relatedList">${skeletonGrid(0)}</div></div>
   </div>`;
+
+  setupPlayer(id);
 
   // запись старта просмотра — обновим, когда придут детали
   const { video, related } = await api(`/api/video/${id}`);
@@ -293,6 +355,110 @@ async function renderWatch(id) {
   document.getElementById("dislikeBtn").addEventListener("click", () => {
     post({ type: "dislike", video: v });
     toast("Учли: меньше такого");
+  });
+}
+
+// ---------- кастомный плеер с синей полосой #2ea8ef ----------
+let ytApiPromise = null;
+function loadYTApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve, reject) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) try { prev(); } catch {} resolve(); };
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    tag.onerror = () => reject(new Error("yt api blocked"));
+    document.head.appendChild(tag);
+    setTimeout(() => { if (!(window.YT && window.YT.Player)) reject(new Error("yt api timeout")); }, 6000);
+  });
+  return ytApiPromise;
+}
+
+let ytPlayer = null, ytPoll = null, ytDuration = 0, ytSeeking = false, playerGlobalsWired = false;
+
+function destroyPlayer() {
+  if (ytPoll) { clearInterval(ytPoll); ytPoll = null; }
+  if (ytPlayer && ytPlayer.destroy) { try { ytPlayer.destroy(); } catch {} }
+  ytPlayer = null; ytDuration = 0; ytSeeking = false;
+}
+
+async function setupPlayer(videoId) {
+  destroyPlayer();
+  const target = document.getElementById("ytplayer");
+  if (!target) return;
+  try {
+    await loadYTApi();
+    if (!document.getElementById("ytplayer")) return; // ушли со страницы пока грузился API
+    ytPlayer = new YT.Player("ytplayer", {
+      width: "100%", height: "100%", videoId,
+      playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3 },
+      events: { onReady: onPlayerReady, onStateChange: onPlayerState },
+    });
+  } catch {
+    // запасной плеер: обычный ютуб (полоса красная), зато видео точно играет
+    target.outerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen style="width:100%;height:100%;border:0"></iframe>`;
+  }
+}
+
+function onPlayerReady() {
+  const ctrl = document.getElementById("vctrl");
+  if (ctrl) ctrl.style.display = "";
+  try { ytDuration = ytPlayer.getDuration() || 0; } catch {}
+  wirePlayerControls();
+  ytPoll = setInterval(updatePlayerProgress, 250);
+}
+
+function onPlayerState(e) {
+  const btn = document.getElementById("vplay");
+  if (btn) btn.textContent = e.data === YT.PlayerState.PLAYING ? "⏸" : "▶";
+  if (!ytDuration) { try { ytDuration = ytPlayer.getDuration() || 0; } catch {} }
+}
+
+function setBar(ratio) {
+  const fill = document.getElementById("vfill"), knob = document.getElementById("vknob");
+  if (fill) fill.style.width = (ratio * 100) + "%";
+  if (knob) knob.style.left = (ratio * 100) + "%";
+}
+
+function updatePlayerProgress() {
+  if (!ytPlayer || ytSeeking) return;
+  let t = 0;
+  try { t = ytPlayer.getCurrentTime() || 0; if (!ytDuration) ytDuration = ytPlayer.getDuration() || 0; } catch { return; }
+  const ratio = ytDuration ? Math.min(1, t / ytDuration) : 0;
+  setBar(ratio);
+  const time = document.getElementById("vtime");
+  if (time) time.textContent = `${formatDuration(Math.floor(t))} / ${formatDuration(Math.floor(ytDuration))}`;
+}
+
+function seekToClientX(clientX) {
+  const bar = document.getElementById("vbar");
+  if (!bar || !ytPlayer) return;
+  const rect = bar.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  if (ytDuration) ytPlayer.seekTo(ratio * ytDuration, true);
+  setBar(ratio);
+}
+
+function wirePlayerControls() {
+  if (!playerGlobalsWired) {
+    playerGlobalsWired = true;
+    window.addEventListener("mousemove", (e) => { if (ytSeeking) seekToClientX(e.clientX); });
+    window.addEventListener("mouseup", () => { ytSeeking = false; });
+  }
+  document.getElementById("vbar").addEventListener("mousedown", (e) => { ytSeeking = true; seekToClientX(e.clientX); });
+  document.getElementById("vplay").addEventListener("click", () => {
+    if (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
+  });
+  const muteBtn = document.getElementById("vmute");
+  muteBtn.addEventListener("click", () => {
+    if (ytPlayer.isMuted()) { ytPlayer.unMute(); muteBtn.textContent = "🔊"; }
+    else { ytPlayer.mute(); muteBtn.textContent = "🔇"; }
+  });
+  document.getElementById("vfull").addEventListener("click", () => {
+    const wrap = document.getElementById("playerWrap");
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (wrap?.requestFullscreen) wrap.requestFullscreen();
   });
 }
 

@@ -141,9 +141,29 @@ app.post("/api/subscriptions/remove", (req, res) => {
 });
 
 // История просмотров
-app.get("/api/history", (req, res) => {
-  res.json({ items: profile.getProfile().watchHistory.slice(0, 300) });
-});
+app.get("/api/history", h(async (req, res) => {
+  const items = profile.getProfile().watchHistory.slice(0, 200);
+  // подтянем длительность/просмотры пачками по 50 (нужно, чтобы отделить Shorts)
+  const ids = items.map((v) => v.id);
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+  const dur = {};
+  try {
+    const results = await Promise.all(chunks.map((c) => yt.hydrateVideos(c).catch(() => ({}))));
+    for (const r of results) Object.assign(dur, r);
+  } catch { /* без длительностей всё равно покажем */ }
+  const out = items.map((v) => {
+    const full = dur[v.id] || {};
+    const duration = full.duration ?? v.duration ?? null;
+    return {
+      ...v,
+      duration,
+      views: full.views ?? v.views ?? null,
+      isShort: duration != null && duration <= 60,
+    };
+  });
+  res.json({ items: out });
+}));
 
 // Понравившиеся
 app.get("/api/liked", (req, res) => {
