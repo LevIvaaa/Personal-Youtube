@@ -17,6 +17,7 @@ export type Video = {
   views?: number | null;
   likes?: number | null;
   duration?: number | null;
+  description?: string;
 };
 
 export type ChannelInfo = { id: string; title?: string; thumbnail?: string; subscribers?: string };
@@ -105,6 +106,7 @@ function mapVideoItem(item: any): Video {
     views: item.statistics?.viewCount ? Number(item.statistics.viewCount) : null,
     likes: item.statistics?.likeCount ? Number(item.statistics.likeCount) : null,
     duration: parseDuration(item.contentDetails?.duration),
+    description: decodeHtml(s.description || ""),
   };
 }
 

@@ -31,8 +31,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     loadSubs();
   }, [loadSubs]);
 
-  // на странице видео боковая панель скрывается автоматически
-  useEffect(() => { setCollapsed(route === "watch"); }, [route]);
+  // на странице видео и shorts боковая панель скрывается автоматически
+  useEffect(() => { setCollapsed(route === "watch" || route === "shorts"); }, [route]);
 
   useEffect(() => {
     const close = () => setMenuOpen(false);

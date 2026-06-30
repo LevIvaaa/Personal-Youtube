@@ -36,7 +36,7 @@ export function VideoCard({ v }: { v: Video }) {
 
 export function ShortCard({ v }: { v: Video }) {
   return (
-    <Link className="short-card" href={`/watch/${v.id}`}>
+    <Link className="short-card" href={`/shorts/${v.id}`}>
       <div className="short-thumb">{v.thumbnail ? <img loading="lazy" src={proxify(v.thumbnail)} alt="" /> : null}</div>
       <div className="short-title">{v.title}</div>
       <div className="short-ch">{v.channelTitle}</div>

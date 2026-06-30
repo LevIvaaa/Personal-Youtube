@@ -166,6 +166,7 @@ class FeedSession {
       let added = 0;
       for (const v of items) {
         if (!v.id || excluded.has(v.id) || inBuf.has(v.id)) continue;
+        if (v.duration != null && v.duration <= 60) continue; // Shorts — только в полке, не в ленте
         const { score, reasons, novelty } = scoreVideo(v, snap);
         this.buffer.push({ ...v, _score: score, _reasons: reasons, _novelty: novelty });
         inBuf.add(v.id);

@@ -18,6 +18,12 @@ export function formatDuration(sec?: number | null): string {
   const pad = (x: number) => String(x).padStart(2, "0");
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
+export function fullDate(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(+d)) return "";
+  return d.toLocaleString("ru-RU", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 export function proxify(url?: string | null): string {
   return url ? `/api/img?u=${encodeURIComponent(url)}` : "";
 }
@@ -28,5 +34,5 @@ export function initials(name = "?"): string {
 export type Video = {
   id: string; title: string; channelId?: string; channelTitle?: string;
   publishedAt?: string; thumbnail?: string; duration?: number | null; views?: number | null;
-  reasons?: string[]; isShort?: boolean; watchedAt?: string;
+  reasons?: string[]; isShort?: boolean; watchedAt?: string; description?: string;
 };
