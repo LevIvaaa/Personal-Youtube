@@ -37,10 +37,8 @@ export default function YouTubePlayer({ videoId, title, channelTitle }: { videoI
   const [fs, setFs] = useState(false);
   const [hover, setHover] = useState<{ ratio: number; t: number } | null>(null);
 
-  const [src] = useState(() => {
-    const origin = typeof window !== "undefined" ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
-    return `${ORIGIN}/embed/${videoId}?enablejsapi=1&controls=0&rel=0&modestbranding=1&playsinline=1&autoplay=1&fs=0&iv_load_policy=3&widgetid=1${origin}`;
-  });
+  // детерминированный src (без window) — чтобы не было рассинхрона SSR/клиент
+  const src = `${ORIGIN}/embed/${videoId}?enablejsapi=1&controls=0&rel=0&modestbranding=1&playsinline=1&autoplay=1&fs=0&iv_load_policy=3&widgetid=1`;
 
   const send = useCallback((msg: object) => {
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify(msg), "*");
