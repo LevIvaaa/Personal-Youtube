@@ -31,6 +31,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     loadSubs();
   }, [loadSubs]);
 
+  // на странице видео боковая панель скрывается автоматически
+  useEffect(() => { setCollapsed(route === "watch"); }, [route]);
+
   useEffect(() => {
     const close = () => setMenuOpen(false);
     if (menuOpen) { document.addEventListener("click", close); return () => document.removeEventListener("click", close); }
@@ -60,9 +63,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button className="icon-btn" onClick={() => setCollapsed((c) => !c)} title="Меню">
             <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
-          <Link className="logo" href="/">
+          <Link className="logo" href="/" title="Personal YouTube">
             <span className="logo-mark"><svg viewBox="0 0 28 20"><rect width="28" height="20" rx="5" fill="#ff0000" /><polygon points="11,5 11,15 20,10" fill="#fff" /></svg></span>
-            <span className="logo-text">Personal<span className="logo-sub">YouTube</span></span>
           </Link>
         </div>
         <div className="topbar-center">
@@ -103,12 +105,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="nav-group">
             <NavItem href="/" active={route === "home"} label="Главная" icon={<path d="M3 11l9-8 9 8M5 9v11h14V9" />} />
             <NavItem href="/subscriptions" active={route === "subscriptions"} label="Подписки" icon={<path d="M4 7h16M6 12h12M9 17h6" />} />
-            <NavItem href="/trending" active={route === "trending"} label="В тренде" icon={<path d="M13 2L5 14h6l-2 8 8-12h-6z" />} />
           </nav>
           <div className="nav-divider" />
           <div className="nav-group">
             <div className="nav-title">Вы</div>
-            <NavItem href="/history" active={route === "history"} label="История" icon={<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>} />
+            <NavItem href="/history" active={route === "history"} label="История" icon={<><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 8v4l3 2" /></>} />
+            <NavItem href="/playlists" active={route === "playlists" || route === "playlist"} label="Плейлисты" icon={<><path d="M3 6h12M3 12h12M3 18h7" /><path d="M16 13l5 3-5 3z" /></>} />
+            <NavItem href="/watch-later" active={route === "watch-later"} label="Смотреть позже" icon={<><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></>} />
             <NavItem href="/liked" active={route === "liked"} label="Понравившиеся" icon={<path d="M7 10v11M2 12h5v9H2zM7 10l4-7c1.5 0 2 1 2 2v3h6a2 2 0 0 1 2 2l-2 7a2 2 0 0 1-2 1H7" />} />
           </div>
           <div className="nav-divider" />

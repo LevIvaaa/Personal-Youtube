@@ -214,6 +214,26 @@ export async function feedPage({ sessionId = "", limit = 16 } = {}) {
   return { session: id, items, exhausted: items.length === 0 };
 }
 
+// Ряд Shorts (короткие ≤60с) для верха главной
+export async function shortsRow({ limit = 24 } = {}) {
+  const snap = await getSnapshot();
+  const excluded = new Set<string>([...snap.notInterested, ...snap.dislikes]);
+  const channelIds = [...new Set([...Object.keys(snap.subscriptions), ...topChannels(snap, 8).map((c) => c.id)])].slice(0, 10);
+  const pulls = await Promise.all([
+    yt.trendingPaged({ maxResults: 25 }).then((r) => r.items).catch(() => [] as Video[]),
+    ...channelIds.map((id) => yt.channelUploads(id, { maxResults: 10 }).then((r) => r.items).catch(() => [] as Video[])),
+  ]);
+  const cand = new Map<string, Video>();
+  for (const arr of pulls) for (const v of arr) if (v.id && !excluded.has(v.id) && !cand.has(v.id)) cand.set(v.id, v);
+  const ids = [...cand.keys()];
+  for (let i = 0; i < ids.length; i += 50) {
+    try { const h = await yt.hydrateVideos(ids.slice(i, i + 50)); for (const [id, full] of Object.entries(h)) cand.set(id, { ...cand.get(id)!, ...full }); } catch { /* ok */ }
+  }
+  const shorts = [...cand.values()].filter((v) => v.duration != null && v.duration <= 60);
+  shorts.sort((a, b) => scoreVideo(b, snap).score - scoreVideo(a, snap).score);
+  return shorts.slice(0, limit);
+}
+
 export async function buildRelated(videoId: string) {
   const video = await yt.videoDetails(videoId);
   if (!video) return [];

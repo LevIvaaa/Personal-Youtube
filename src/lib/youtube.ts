@@ -230,6 +230,26 @@ export async function resolveChannel(input: string): Promise<ChannelInfo | null>
   return null;
 }
 
+export type Comment = { id: string; author: string; avatar: string; text: string; likes: number; publishedAt: string };
+export async function comments(videoId: string, maxResults = 20): Promise<Comment[]> {
+  try {
+    const data = await call("commentThreads", { part: "snippet", videoId, maxResults, order: "relevance", textFormat: "plainText" }, { ttlMs: 1000 * 60 * 30 });
+    return (data.items || []).map((it: any) => {
+      const s = it.snippet?.topLevelComment?.snippet || {};
+      return {
+        id: it.id,
+        author: decodeHtml(s.authorDisplayName || ""),
+        avatar: s.authorProfileImageUrl || "",
+        text: decodeHtml(s.textDisplay || s.textOriginal || ""),
+        likes: Number(s.likeCount || 0),
+        publishedAt: s.publishedAt,
+      };
+    });
+  } catch {
+    return []; // комментарии могут быть отключены
+  }
+}
+
 export function isConfigured(): boolean {
   return !!KEY();
 }

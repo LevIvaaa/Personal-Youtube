@@ -82,6 +82,17 @@ model NotInterested {
   @@map("not_interested")
 }
 
+// Плейлисты (перенесены с YouTube / Takeout). Watch later — это плейлист "Watch later".
+model PlaylistItem {
+  id       Int      @id @default(autoincrement())
+  playlist String
+  videoId  String   @map("video_id")
+  addedAt  DateTime @default(now()) @map("added_at")
+
+  @@index([playlist])
+  @@map("playlist_items")
+}
+
 // История поиска
 model Search {
   id  Int      @id @default(autoincrement())

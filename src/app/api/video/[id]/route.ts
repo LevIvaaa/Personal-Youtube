@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const [video, related] = await Promise.all([yt.videoDetails(params.id), buildRelated(params.id)]);
-    return Response.json({ video, related });
+    let channel = null;
+    if (video?.channelId) {
+      try { channel = (await yt.channelsInfo([video.channelId]))[video.channelId] || null; } catch { /* ignore */ }
+    }
+    return Response.json({ video, related, channel });
   } catch (e) {
     return fail(e);
   }
