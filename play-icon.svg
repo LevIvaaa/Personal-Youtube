@@ -1,0 +1,5 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Play">
+  <title>Play</title>
+  <rect width="256" height="256" rx="72" fill="#FF0000"/>
+  <path d="M 111.22 76.08 L 183.44 115.92 Q 205.33 128.00 183.44 140.08 L 111.22 179.92 Q 89.33 192.00 89.33 167.00 L 89.33 89.00 Q 89.33 64.00 111.22 76.08 Z" fill="#FFFFFF"/>
+</svg>

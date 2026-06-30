@@ -3,11 +3,9 @@ import "./globals.css";
 import AppShell from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "Personal YouTube",
+  title: "NyaTube",
   description: "Личный локальный видеохостинг с персональными рекомендациями",
-  icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23ff0000'/><polygon points='40,30 40,70 72,50' fill='white'/></svg>",
-  },
+  icons: { icon: "/play-icon.svg" },
 };
 
 // Ставим тему до отрисовки контента, чтобы не было «вспышки».

@@ -223,13 +223,13 @@ export async function feedPage({ sessionId = "", limit = 16 } = {}) {
 }
 
 // Ряд Shorts (короткие ≤60с) для верха главной
-export async function shortsRow({ limit = 24 } = {}) {
+export async function shortsRow({ limit = 48 } = {}) {
   const snap = await getSnapshot();
   const excluded = new Set<string>([...snap.notInterested, ...snap.dislikes]);
-  const channelIds = [...new Set([...Object.keys(snap.subscriptions), ...topChannels(snap, 8).map((c) => c.id)])].slice(0, 10);
+  const channelIds = [...new Set([...Object.keys(snap.subscriptions), ...topChannels(snap, 14).map((c) => c.id)])].slice(0, 18);
   const pulls = await Promise.all([
-    yt.trendingPaged({ maxResults: 25 }).then((r) => r.items).catch(() => [] as Video[]),
-    ...channelIds.map((id) => yt.channelUploads(id, { maxResults: 10 }).then((r) => r.items).catch(() => [] as Video[])),
+    yt.trendingPaged({ maxResults: 50 }).then((r) => r.items).catch(() => [] as Video[]),
+    ...channelIds.map((id) => yt.channelUploads(id, { maxResults: 15 }).then((r) => r.items).catch(() => [] as Video[])),
   ]);
   const cand = new Map<string, Video>();
   for (const arr of pulls) for (const v of arr) if (v.id && !excluded.has(v.id) && !cand.has(v.id)) cand.set(v.id, v);

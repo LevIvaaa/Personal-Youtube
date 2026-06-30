@@ -387,3 +387,7 @@ html.light .account-menu { box-shadow: 0 4px 24px rgba(0,0,0,.18); }
 .short-count { color: var(--text-dim); font-size: 12px; }
 .short-comments { width: 360px; max-height: calc(100vh - var(--topbar-h) - 90px); overflow-y: auto; }
 .short-comments > h3 { margin: 0 0 14px; font-size: 16px; }
+
+/* лого NyaTube */
+img.logo-mark { width: 26px; height: 26px; border-radius: 7px; display: block; }
+.logo-text { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }

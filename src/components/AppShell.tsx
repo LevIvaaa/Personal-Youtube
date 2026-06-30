@@ -64,8 +64,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button className="icon-btn" onClick={() => setCollapsed((c) => !c)}>
             <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
-          <Link className="logo" href="/" title="Personal YouTube">
-            <span className="logo-mark"><svg viewBox="0 0 28 20"><rect width="28" height="20" rx="5" fill="#ff0000" /><polygon points="11,5 11,15 20,10" fill="#fff" /></svg></span>
+          <Link className="logo" href="/">
+            <img className="logo-mark" src="/play-icon.svg" alt="NyaTube" width={28} height={28} />
+            <span className="logo-text">NyaTube</span>
           </Link>
         </div>
         <div className="topbar-center">

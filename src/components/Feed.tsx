@@ -49,9 +49,16 @@ export default function Feed() {
     return () => obs.disconnect();
   }, [load]);
 
+  // дозагрузка, пока низ ленты в зоне видимости (observer не повторяет событие сам)
+  useEffect(() => {
+    if (status !== "idle" || doneRef.current) return;
+    const el = sentinel.current; if (!el) return;
+    if (el.getBoundingClientRect().top < window.innerHeight + 600) load();
+  }, [items, status, load]);
+
   return (
     <>
-      <div className="grid">{items.map((v) => <VideoCard key={v.id} v={v} />)}</div>
+      <div className="grid">{items.map((v, i) => <VideoCard key={`${v.id}-${i}`} v={v} />)}</div>
       {status === "loading" && <div className="feed-loader"><span className="spinner" /> Подбираем под тебя…</div>}
       {status === "done" && <div className="feed-end">{items.length ? "Это всё на сейчас. Загляни позже — появится новое." : "Пока пусто. Посмотри/лайкни что-нибудь — лента подстроится."}</div>}
       {status === "error" && <div className="feed-end">Не удалось загрузить ещё. Возможно, на сегодня исчерпана квота YouTube API — она сбросится по тихоокеанскому времени.</div>}
