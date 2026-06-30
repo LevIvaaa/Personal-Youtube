@@ -18,6 +18,7 @@ export type Video = {
   likes?: number | null;
   duration?: number | null;
   description?: string;
+  channelThumb?: string;
 };
 
 export type ChannelInfo = { id: string; title?: string; thumbnail?: string; subscribers?: string };
@@ -230,6 +231,18 @@ export async function resolveChannel(input: string): Promise<ChannelInfo | null>
     if (it) return { id: it.snippet?.channelId, title: decodeHtml(it.snippet?.channelTitle || it.snippet?.title), thumbnail: pickThumb(it.snippet?.thumbnails) };
   } catch { /* ignore */ }
   return null;
+}
+
+// Подставляет аватарки каналов к списку видео (батчами, дёшево + кэш 24ч).
+export async function enrichChannelThumbs<T extends { channelId?: string | null; channelThumb?: string }>(videos: T[]): Promise<T[]> {
+  const ids = [...new Set(videos.map((v) => v.channelId).filter(Boolean) as string[])];
+  if (!ids.length) return videos;
+  const info: Record<string, ChannelInfo> = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    try { Object.assign(info, await channelsInfo(ids.slice(i, i + 50))); } catch { /* ignore */ }
+  }
+  for (const v of videos) if (v.channelId && info[v.channelId]?.thumbnail) v.channelThumb = info[v.channelId].thumbnail;
+  return videos;
 }
 
 export type Comment = { id: string; author: string; avatar: string; text: string; likes: number; publishedAt: string };

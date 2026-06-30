@@ -18,7 +18,7 @@ export async function GET() {
       const duration = full.duration ?? v.duration ?? null;
       return { ...v, duration, views: full.views ?? null, isShort: duration != null && duration <= 60 };
     });
-    return Response.json({ items: out });
+    return Response.json({ items: await yt.enrichChannelThumbs(out) });
   } catch (e) {
     return fail(e);
   }

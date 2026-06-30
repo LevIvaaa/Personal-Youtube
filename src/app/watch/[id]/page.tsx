@@ -80,8 +80,8 @@ export default function WatchPage() {
               <div className="subs">{channel?.subscribers ? formatViews(Number(channel.subscribers)).replace("просмотров", "подписчиков") : ""}</div>
             </div>
           </div>
-          <button className={`pill-btn${liked ? " active" : ""}`} onClick={toggleLike} title="Нравится">👍</button>
-          <button className="pill-btn" onClick={() => post({ type: "dislike", video })} title="Не нравится">👎</button>
+          <button className={`pill-btn${liked ? " active" : ""}`} onClick={toggleLike}>👍</button>
+          <button className="pill-btn" onClick={() => post({ type: "dislike", video })}>👎</button>
         </div>
 
         <div className={`watch-desc${descOpen ? " open" : ""}`} onClick={() => setDescOpen((o) => !o)}>

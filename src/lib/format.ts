@@ -34,5 +34,5 @@ export function initials(name = "?"): string {
 export type Video = {
   id: string; title: string; channelId?: string; channelTitle?: string;
   publishedAt?: string; thumbnail?: string; duration?: number | null; views?: number | null;
-  reasons?: string[]; isShort?: boolean; watchedAt?: string; description?: string;
+  reasons?: string[]; isShort?: boolean; watchedAt?: string; description?: string; channelThumb?: string;
 };

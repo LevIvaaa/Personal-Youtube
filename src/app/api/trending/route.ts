@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    return Response.json({ items: await yt.trending({ maxResults: 32 }) });
+    return Response.json({ items: await yt.enrichChannelThumbs(await yt.trending({ maxResults: 32 })) });
   } catch (e) {
     return fail(e);
   }

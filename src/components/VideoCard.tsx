@@ -4,9 +4,6 @@ import { useRouter } from "next/navigation";
 import { formatViews, timeAgo, formatDuration, proxify, initials, type Video } from "@/lib/format";
 
 export function VideoCard({ v }: { v: Video }) {
-  const reason = v.reasons && v.reasons.length ? (
-    <div className="card-reason">Рекомендуем: {v.reasons[0]}</div>
-  ) : null;
   const notInterested = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
     fetch("/api/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "notInterested", videoId: v.id, channelId: v.channelId }) });
@@ -19,15 +16,14 @@ export function VideoCard({ v }: { v: Video }) {
         {v.duration != null ? <span className="duration">{formatDuration(v.duration)}</span> : null}
       </div>
       <div className="card-body">
-        <div className="ch-avatar">{initials(v.channelTitle)}</div>
+        {v.channelThumb ? <img className="ch-avatar" src={proxify(v.channelThumb)} alt="" /> : <div className="ch-avatar">{initials(v.channelTitle)}</div>}
         <div className="card-meta">
           <h3 className="card-title">{v.title}</h3>
           <div className="card-channel">{v.channelTitle}</div>
           <div className="card-sub">{[formatViews(v.views), timeAgo(v.publishedAt)].filter(Boolean).join(" · ")}</div>
-          {reason}
         </div>
         <div className="card-menu">
-          <button title="Не интересно" onClick={notInterested}>⋮</button>
+          <button onClick={notInterested}>⋮</button>
         </div>
       </div>
     </Link>

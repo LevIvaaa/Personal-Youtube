@@ -31,8 +31,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     loadSubs();
   }, [loadSubs]);
 
-  // на странице видео и shorts боковая панель скрывается автоматически
-  useEffect(() => { setCollapsed(route === "watch" || route === "shorts"); }, [route]);
+  // боковая панель скрывается на странице видео и в просмотрщике Shorts (но не в сетке /shorts)
+  const isViewer = (pathname || "").startsWith("/watch/") || /^\/shorts\/[^/]+/.test(pathname || "");
+  useEffect(() => { setCollapsed(isViewer); }, [isViewer]);
 
   useEffect(() => {
     const close = () => setMenuOpen(false);
@@ -60,7 +61,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <header className="topbar">
         <div className="topbar-left">
-          <button className="icon-btn" onClick={() => setCollapsed((c) => !c)} title="Меню">
+          <button className="icon-btn" onClick={() => setCollapsed((c) => !c)}>
             <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
           <Link className="logo" href="/" title="Personal YouTube">
@@ -70,7 +71,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="topbar-center">
           <form className="search" onSubmit={submitSearch}>
             <input value={q} onChange={(e) => setQ(e.target.value)} type="text" placeholder="Поиск" autoComplete="off" />
-            <button type="submit" className="search-btn" title="Найти">
+            <button type="submit" className="search-btn">
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
             </button>
           </form>
@@ -78,7 +79,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="topbar-right">
           <div className="account">
             <button className={`avatar${avatar ? " has-img" : ""}`} style={avatar ? { backgroundImage: `url("${avatar}")` } : undefined}
-              onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }} title="Аккаунт">{avatar ? "" : "Я"}</button>
+              onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }}>{avatar ? "" : "Я"}</button>
             {menuOpen && (
               <div className="account-menu" onClick={(e) => e.stopPropagation()}>
                 <div className="account-item" onClick={() => { setMenuOpen(false); setSettingsOpen(true); }}>
@@ -104,6 +105,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
           <nav className="nav-group">
             <NavItem href="/" active={route === "home"} label="Главная" icon={<path d="M3 11l9-8 9 8M5 9v11h14V9" />} />
+            <NavItem href="/shorts" active={route === "shorts"} label="Shorts" icon={<><rect x="7" y="3" width="10" height="18" rx="3" /><path d="M11 9l4 3-4 3" /></>} />
             <NavItem href="/subscriptions" active={route === "subscriptions"} label="Подписки" icon={<path d="M4 7h16M6 12h12M9 17h6" />} />
           </nav>
           <div className="nav-divider" />

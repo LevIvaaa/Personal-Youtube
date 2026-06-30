@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     let items = await yt.search(q, { maxResults: 24 });
     const hydrated = await yt.hydrateVideos(items.map((v) => v.id));
     items = items.map((v) => ({ ...v, ...(hydrated[v.id] || {}) }));
+    items = await yt.enrichChannelThumbs(items);
     return Response.json({ items });
   } catch (e) {
     return fail(e);

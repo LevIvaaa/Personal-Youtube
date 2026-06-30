@@ -211,7 +211,14 @@ export async function feedPage({ sessionId = "", limit = 16 } = {}) {
   session.touched = Date.now();
   const snap = await getSnapshot();
   await session.refill(snap, limit);
-  const items = session.assemble(limit);
+  let items = session.assemble(limit);
+  if (items.length === 0) {
+    // бесконечная лента: когда свежее кончилось — начинаем круг заново
+    session.served.clear(); session.buffer = []; session.feeders = []; session.built = false; session.rr = 0;
+    await session.refill(snap, limit);
+    items = session.assemble(limit);
+  }
+  items = (await yt.enrichChannelThumbs(items)) as typeof items;
   return { session: id, items, exhausted: items.length === 0 };
 }
 
@@ -232,18 +239,24 @@ export async function shortsRow({ limit = 24 } = {}) {
   }
   const shorts = [...cand.values()].filter((v) => v.duration != null && v.duration <= 60);
   shorts.sort((a, b) => scoreVideo(b, snap).score - scoreVideo(a, snap).score);
-  return shorts.slice(0, limit);
+  return yt.enrichChannelThumbs(shorts.slice(0, limit));
 }
 
 export async function buildRelated(videoId: string) {
   const video = await yt.videoDetails(videoId);
   if (!video) return [];
   const snap = await getSnapshot();
-  const related = await yt.relatedVideos(video, { maxResults: 25 });
   const excluded = new Set<string>([videoId, ...snap.notInterested, ...snap.dislikes]);
-  return related
-    .filter((v) => !excluded.has(v.id))
-    .map((v) => ({ v, s: scoreVideo(v, snap).score }))
-    .sort((a, b) => b.s - a.s)
-    .map(({ v }) => v);
+  const [byTitle, byChannel] = await Promise.all([
+    yt.relatedVideos(video, { maxResults: 25 }).catch(() => [] as Video[]),
+    video.channelId ? yt.channelUploads(video.channelId, { maxResults: 15 }).then((r) => r.items).catch(() => [] as Video[]) : Promise.resolve([] as Video[]),
+  ]);
+  const map = new Map<string, Video>();
+  for (const v of [...byTitle, ...byChannel]) if (v.id && !excluded.has(v.id) && !map.has(v.id)) map.set(v.id, v);
+  const ids = [...map.keys()];
+  for (let i = 0; i < ids.length; i += 50) {
+    try { const h = await yt.hydrateVideos(ids.slice(i, i + 50)); for (const [id, full] of Object.entries(h)) map.set(id, { ...map.get(id)!, ...full }); } catch { /* ok */ }
+  }
+  const list = [...map.values()].map((v) => ({ v, s: scoreVideo(v, snap).score })).sort((a, b) => b.s - a.s).map(({ v }) => v);
+  return yt.enrichChannelThumbs(list.slice(0, 30));
 }
