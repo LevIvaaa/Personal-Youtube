@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDuration, initials } from "@/lib/format";
 
-// ---- иконки (filled) ----
+// Иконки (filled)
 const I = {
   play: "M8 5v14l11-7z",
   pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
@@ -14,35 +14,16 @@ const I = {
 };
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 24 24"><path fill="currentColor" d={d} /></svg>;
 const RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-
-let apiPromise: Promise<void> | null = null;
-function loadApi(): Promise<void> {
-  const w = window as any;
-  if (w.YT?.Player) return Promise.resolve();
-  if (apiPromise) return apiPromise;
-  apiPromise = new Promise((resolve, reject) => {
-    const prev = w.onYouTubeIframeAPIReady;
-    w.onYouTubeIframeAPIReady = () => { prev?.(); resolve(); };
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
-    tag.onerror = () => reject(new Error("blocked"));
-    document.head.appendChild(tag);
-    setTimeout(() => { if (!w.YT?.Player) reject(new Error("timeout")); }, 6000);
-  });
-  return apiPromise;
-}
+const ORIGIN = "https://www.youtube-nocookie.com";
 
 export default function YouTubePlayer({ videoId, title, channelTitle }: { videoId: string; title?: string; channelTitle?: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<any>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const volRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<any>(null);
   const dragging = useRef(false);
 
-  const [ready, setReady] = useState(false);
-  const [fallback, setFallback] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -56,48 +37,40 @@ export default function YouTubePlayer({ videoId, title, channelTitle }: { videoI
   const [fs, setFs] = useState(false);
   const [hover, setHover] = useState<{ ratio: number; t: number } | null>(null);
 
-  // создать плеер
-  useEffect(() => {
-    let cancelled = false;
-    loadApi().then(() => {
-      if (cancelled || !hostRef.current) return;
-      const YT = (window as any).YT;
-      playerRef.current = new YT.Player(hostRef.current, {
-        videoId,
-        playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0 },
-        events: {
-          onReady: (e: any) => { if (cancelled) return; setReady(true); setDur(e.target.getDuration() || 0); setVolume(e.target.getVolume() || 100); setMuted(e.target.isMuted()); },
-          onStateChange: (e: any) => {
-            const S = (window as any).YT.PlayerState;
-            setBuffering(e.data === S.BUFFERING);
-            if (e.data === S.PLAYING) { setPlaying(true); setDur(playerRef.current?.getDuration() || 0); }
-            else if (e.data === S.PAUSED || e.data === S.ENDED || e.data === S.CUED) setPlaying(false);
-          },
-        },
-      });
-    }).catch(() => { if (!cancelled) setFallback(true); });
-    return () => { cancelled = true; try { playerRef.current?.destroy?.(); } catch {} playerRef.current = null; };
-  }, [videoId]);
+  const [src] = useState(() => {
+    const origin = typeof window !== "undefined" ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
+    return `${ORIGIN}/embed/${videoId}?enablejsapi=1&controls=0&rel=0&modestbranding=1&playsinline=1&autoplay=1&fs=0&iv_load_policy=3&widgetid=1${origin}`;
+  });
 
-  // прогресс
-  useEffect(() => {
-    if (!ready) return;
-    const id = setInterval(() => {
-      const p = playerRef.current; if (!p || dragging.current) return;
-      try { setCur(p.getCurrentTime() || 0); const d = p.getDuration() || 0; if (d) setDur(d); setBuf(p.getVideoLoadedFraction?.() || 0); } catch {}
-    }, 250);
-    return () => clearInterval(id);
-  }, [ready]);
+  const send = useCallback((msg: object) => {
+    iframeRef.current?.contentWindow?.postMessage(JSON.stringify(msg), "*");
+  }, []);
+  const cmd = useCallback((func: string, args: any[] = []) => send({ event: "command", func, args, id: 1, channel: "widget" }), [send]);
 
-  // авто-скрытие
-  const poke = useCallback(() => {
-    setShow(true);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => {
-      const p = playerRef.current;
-      if (p && p.getPlayerState?.() === (window as any).YT?.PlayerState.PLAYING && !menuOpen) setShow(false);
-    }, 2500);
-  }, [menuOpen]);
+  // приём состояния от плеера (без iframe_api — напрямую через postMessage)
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (typeof e.data !== "string" || !e.origin.includes("youtube")) return;
+      let d: any; try { d = JSON.parse(e.data); } catch { return; }
+      const i = d?.info;
+      if (!i) return;
+      if (typeof i.duration === "number" && i.duration) setDur(i.duration);
+      if (typeof i.currentTime === "number" && !dragging.current) setCur(i.currentTime);
+      if (typeof i.videoLoadedFraction === "number") setBuf(i.videoLoadedFraction);
+      if (typeof i.volume === "number") setVolume(i.volume);
+      if (typeof i.muted === "boolean") setMuted(i.muted);
+      if (typeof i.playerState === "number") { setPlaying(i.playerState === 1); setBuffering(i.playerState === 3); }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  // handshake: просим плеер слать события
+  const onLoad = useCallback(() => {
+    let n = 0;
+    const tick = () => { send({ event: "listening", id: 1, channel: "widget" }); if (++n < 8) setTimeout(tick, 400); };
+    tick();
+  }, [send]);
 
   useEffect(() => {
     const onFs = () => setFs(document.fullscreenElement === wrapRef.current);
@@ -105,20 +78,26 @@ export default function YouTubePlayer({ videoId, title, channelTitle }: { videoI
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  const togglePlay = () => { const p = playerRef.current; if (!p) return; if (p.getPlayerState?.() === (window as any).YT.PlayerState.PLAYING) p.pauseVideo(); else p.playVideo(); poke(); };
-  const toggleMute = () => { const p = playerRef.current; if (!p) return; if (p.isMuted()) { p.unMute(); setMuted(false); if ((p.getVolume() || 0) === 0) { p.setVolume(50); setVolume(50); } } else { p.mute(); setMuted(true); } };
-  const seekRatio = (r: number) => { const p = playerRef.current; if (!p || !dur) return; p.seekTo(r * dur, true); setCur(r * dur); };
+  const poke = useCallback(() => {
+    setShow(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => { setShow((s) => (playing && !menuOpen ? false : s)); }, 2500);
+  }, [playing, menuOpen]);
+
+  const togglePlay = () => { if (playing) { cmd("pauseVideo"); setPlaying(false); } else { cmd("playVideo"); setPlaying(true); } poke(); };
+  const toggleMute = () => { if (muted || volume === 0) { cmd("unMute"); if (volume === 0) { cmd("setVolume", [50]); setVolume(50); } setMuted(false); } else { cmd("mute"); setMuted(true); } };
+  const seekRatio = (r: number) => { if (dur) { cmd("seekTo", [r * dur, true]); setCur(r * dur); } };
   const toggleFs = () => { const el = wrapRef.current; if (!el) return; if (document.fullscreenElement) document.exitFullscreen(); else el.requestFullscreen?.(); };
-  const chooseRate = (r: number) => { playerRef.current?.setPlaybackRate(r); setRate(r); setMenuOpen(false); };
+  const chooseRate = (r: number) => { cmd("setPlaybackRate", [r]); setRate(r); setMenuOpen(false); };
 
   const ratioFrom = (el: HTMLElement, clientX: number) => { const b = el.getBoundingClientRect(); return Math.max(0, Math.min(1, (clientX - b.left) / b.width)); };
   const startBarDrag = (e: React.MouseEvent) => {
-    dragging.current = true; const r0 = ratioFrom(barRef.current!, e.clientX); setCur(r0 * dur);
+    dragging.current = true; setCur(ratioFrom(barRef.current!, e.clientX) * dur);
     const move = (ev: MouseEvent) => setCur(ratioFrom(barRef.current!, ev.clientX) * dur);
     const up = (ev: MouseEvent) => { dragging.current = false; seekRatio(ratioFrom(barRef.current!, ev.clientX)); window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
     window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
   };
-  const setVolFrom = (clientX: number) => { const r = ratioFrom(volRef.current!, clientX); const v = Math.round(r * 100); const p = playerRef.current; if (!p) return; p.setVolume(v); setVolume(v); if (v > 0 && p.isMuted()) { p.unMute(); setMuted(false); } if (v === 0) { p.mute(); setMuted(true); } };
+  const setVolFrom = (clientX: number) => { const v = Math.round(ratioFrom(volRef.current!, clientX) * 100); cmd("setVolume", [v]); setVolume(v); if (v > 0 && muted) { cmd("unMute"); setMuted(false); } if (v === 0) { cmd("mute"); setMuted(true); } };
   const startVolDrag = (e: React.MouseEvent) => {
     e.stopPropagation(); setVolFrom(e.clientX);
     const move = (ev: MouseEvent) => setVolFrom(ev.clientX);
@@ -126,65 +105,48 @@ export default function YouTubePlayer({ videoId, title, channelTitle }: { videoI
     window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
   };
 
-  // клавиатура
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName) || ""; if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const p = playerRef.current; if (!p) return;
       const k = e.key.toLowerCase();
-      const d = p.getDuration?.() || 0, t = p.getCurrentTime?.() || 0;
       if (k === " " || k === "k") { e.preventDefault(); togglePlay(); }
-      else if (k === "arrowright") { e.preventDefault(); p.seekTo(t + 5, true); }
-      else if (k === "arrowleft") { e.preventDefault(); p.seekTo(Math.max(0, t - 5), true); }
-      else if (k === "j") p.seekTo(Math.max(0, t - 10), true);
-      else if (k === "l") p.seekTo(t + 10, true);
+      else if (k === "arrowright") { e.preventDefault(); cmd("seekTo", [cur + 5, true]); setCur(cur + 5); }
+      else if (k === "arrowleft") { e.preventDefault(); cmd("seekTo", [Math.max(0, cur - 5), true]); setCur(Math.max(0, cur - 5)); }
+      else if (k === "j") cmd("seekTo", [Math.max(0, cur - 10), true]);
+      else if (k === "l") cmd("seekTo", [cur + 10, true]);
       else if (k === "m") toggleMute();
       else if (k === "f") toggleFs();
-      else if (k === "arrowup") { e.preventDefault(); const v = Math.min(100, (p.getVolume() || 0) + 5); p.setVolume(v); setVolume(v); if (p.isMuted()) { p.unMute(); setMuted(false); } }
-      else if (k === "arrowdown") { e.preventDefault(); const v = Math.max(0, (p.getVolume() || 0) - 5); p.setVolume(v); setVolume(v); }
-      else if (k >= "0" && k <= "9" && d) p.seekTo(d * (+k / 10), true);
+      else if (k === "arrowup") { e.preventDefault(); const v = Math.min(100, volume + 5); cmd("setVolume", [v]); setVolume(v); if (muted) { cmd("unMute"); setMuted(false); } }
+      else if (k === "arrowdown") { e.preventDefault(); const v = Math.max(0, volume - 5); cmd("setVolume", [v]); setVolume(v); }
+      else if (k >= "0" && k <= "9" && dur) { cmd("seekTo", [dur * (+k / 10), true]); }
       poke();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [poke]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur, dur, volume, muted, playing, menuOpen]);
 
   const progress = dur ? Math.min(1, cur / dur) : 0;
   const visible = show || !playing;
 
-  if (fallback) {
-    return (
-      <div className="cp">
-        <iframe src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&color=white`} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
-      </div>
-    );
-  }
-
   return (
-    <div ref={wrapRef} className={`cp${visible ? " show" : ""}${fs ? " fs" : ""}`}
-      onMouseMove={poke} onMouseLeave={() => { if (playing && !menuOpen) setShow(false); }}>
-      <div ref={hostRef} className="cp-host" />
+    <div ref={wrapRef} className={`cp${visible ? " show" : ""}${fs ? " fs" : ""}`} onMouseMove={poke} onMouseLeave={() => { if (playing && !menuOpen) setShow(false); }}>
+      <iframe ref={iframeRef} className="cp-host" src={src} title={title || "video"} onLoad={onLoad}
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen" />
 
       <div className="cp-click" onClick={togglePlay} onDoubleClick={toggleFs} />
 
-      {/* верхняя плашка: название + канал */}
       <div className="cp-top">
         <div className="ava">{initials(channelTitle)}</div>
-        <div className="meta">
-          <div className="t">{title}</div>
-          <div className="c">{channelTitle}</div>
-        </div>
+        <div className="meta"><div className="t">{title}</div><div className="c">{channelTitle}</div></div>
       </div>
 
-      {/* центр: большая play / спиннер */}
       {buffering ? <div className="cp-spinner" /> : !playing ? (
         <div className="cp-center"><div className="cp-bigplay"><Icon d={I.play} /></div></div>
       ) : null}
 
-      {/* низ: контролы */}
       <div className="cp-bottom" onClick={(e) => e.stopPropagation()}>
-        <div ref={barRef} className="cp-bar"
-          onMouseDown={startBarDrag}
+        <div ref={barRef} className="cp-bar" onMouseDown={startBarDrag}
           onMouseMove={(e) => { const r = ratioFrom(e.currentTarget, e.clientX); setHover({ ratio: r, t: r * dur }); }}
           onMouseLeave={() => setHover(null)}>
           <div className="cp-track">
@@ -207,7 +169,7 @@ export default function YouTubePlayer({ videoId, title, channelTitle }: { videoI
           </div>
           <span className="cp-time">{formatDuration(cur)} / {formatDuration(dur)}</span>
           <span className="cp-spacer" />
-          <button className="cp-btn" onClick={() => setMenuOpen((o) => !o)} title="Настройки"><Icon d={I.gear} /></button>
+          <button className="cp-btn" onClick={() => setMenuOpen((o) => !o)} title="Скорость"><Icon d={I.gear} /></button>
           <button className="cp-btn" onClick={toggleFs} title="Во весь экран (f)"><Icon d={fs ? I.fullExit : I.full} /></button>
         </div>
       </div>
@@ -215,9 +177,7 @@ export default function YouTubePlayer({ videoId, title, channelTitle }: { videoI
       {menuOpen && (
         <div className="cp-menu" onClick={(e) => e.stopPropagation()}>
           <div className="h">Скорость</div>
-          {RATES.map((r) => (
-            <div key={r} className={`cp-mi${r === rate ? " on" : ""}`} onClick={() => chooseRate(r)}>{r === 1 ? "Обычная" : r}</div>
-          ))}
+          {RATES.map((r) => <div key={r} className={`cp-mi${r === rate ? " on" : ""}`} onClick={() => chooseRate(r)}>{r === 1 ? "Обычная" : r}</div>)}
         </div>
       )}
     </div>
