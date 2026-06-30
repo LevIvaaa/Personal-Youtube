@@ -273,3 +273,54 @@ html.light .sidebar::-webkit-scrollbar-thumb,
 html.light .shorts-row::-webkit-scrollbar-thumb { background: #ccc; }
 html.light .toast { background: #0f0f0f; color: #fff; }
 html.light .account-menu { box-shadow: 0 4px 24px rgba(0,0,0,.18); }
+
+/* ===== Кастомный плеер (белая полоса) ===== */
+.cp { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+.cp.fs, .cp:fullscreen { border-radius: 0; }
+.cp:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; }
+.cp-host, .cp-host iframe, .cp iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.cp svg { width: 100%; height: 100%; fill: currentColor; stroke: none; display: block; }
+.cp-click { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
+.cp.show .cp-click { cursor: default; }
+
+.cp-top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding: 14px 16px; display: flex; gap: 12px; align-items: center; background: linear-gradient(rgba(0,0,0,.55), transparent); opacity: 0; transition: opacity .2s; }
+.cp.show .cp-top { opacity: 1; }
+.cp-top .ava { width: 38px; height: 38px; border-radius: 50%; background: #444; display: grid; place-items: center; color: #fff; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+.cp-top .meta .t { color: #fff; font-weight: 600; font-size: 16px; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,.5); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.cp-top .meta .c { color: #e4e4e4; font-size: 13px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+
+.cp-center { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
+.cp-bigplay { width: 70px; height: 70px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: grid; place-items: center; }
+.cp-bigplay svg { width: 34px; height: 34px; }
+.cp-spinner { position: absolute; inset: 0; margin: auto; width: 52px; height: 52px; border: 4px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; z-index: 2; pointer-events: none; }
+
+.cp-bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 0 14px 6px; background: linear-gradient(transparent, rgba(0,0,0,.78)); opacity: 0; transition: opacity .2s; }
+.cp.show .cp-bottom { opacity: 1; }
+
+.cp-bar { position: relative; height: 16px; display: flex; align-items: center; cursor: pointer; }
+.cp-track { position: relative; width: 100%; height: 4px; background: rgba(255,255,255,.3); border-radius: 3px; transition: height .1s; }
+.cp-bar:hover .cp-track { height: 6px; }
+.cp-buf, .cp-hover, .cp-played { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.cp-buf { background: rgba(255,255,255,.45); }
+.cp-hover { background: rgba(255,255,255,.35); }
+.cp-played { background: #fff; }
+.cp-knob { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #fff; transform: translate(-50%,-50%) scale(0); transition: transform .1s; box-shadow: 0 0 6px rgba(0,0,0,.4); }
+.cp-bar:hover .cp-knob { transform: translate(-50%,-50%) scale(1); }
+.cp-tip { position: absolute; bottom: 22px; transform: translateX(-50%); background: rgba(0,0,0,.85); color: #fff; font-size: 12px; padding: 3px 7px; border-radius: 4px; pointer-events: none; white-space: nowrap; }
+
+.cp-row { display: flex; align-items: center; gap: 6px; height: 44px; }
+.cp-btn { width: 40px; height: 40px; padding: 9px; background: transparent; border: 0; color: #fff; cursor: pointer; opacity: .95; border-radius: 50%; }
+.cp-btn:hover { background: rgba(255,255,255,.14); opacity: 1; }
+.cp-time { color: #fff; font-size: 13px; padding: 0 8px; white-space: nowrap; }
+.cp-spacer { flex: 1; }
+.cp-vol { display: flex; align-items: center; }
+.cp-vol-track { position: relative; width: 0; height: 4px; background: rgba(255,255,255,.4); border-radius: 3px; transition: width .2s, margin .2s; cursor: pointer; }
+.cp-vol:hover .cp-vol-track { width: 70px; margin: 0 8px; }
+.cp-vol-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; border-radius: 3px; }
+.cp-vol-knob { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: #fff; transform: translate(-50%,-50%); }
+
+.cp-menu { position: absolute; right: 12px; bottom: 56px; z-index: 4; background: rgba(28,28,28,.96); border-radius: 12px; padding: 6px 0; min-width: 170px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+.cp-menu .h { color: #aaa; font-size: 12px; padding: 6px 16px; }
+.cp-mi { color: #fff; font-size: 14px; padding: 9px 16px; cursor: pointer; }
+.cp-mi:hover { background: rgba(255,255,255,.12); }
+.cp-mi.on::before { content: "✓ "; }

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import YouTubePlayer from "@/components/YouTubePlayer";
 import { formatViews, timeAgo, formatDuration, proxify, initials, type Video } from "@/lib/format";
 
 export default function WatchPage() {
@@ -32,10 +33,7 @@ export default function WatchPage() {
   return (
     <div className="watch">
       <div>
-        <div className="player-wrap">
-          <iframe src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&color=white`}
-            allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
-        </div>
+        <YouTubePlayer key={id} videoId={id} title={video?.title} channelTitle={video?.channelTitle} />
         <h1 className="watch-title">{video?.title || ""}</h1>
         <div className="watch-bar">
           <div className="watch-channel">
