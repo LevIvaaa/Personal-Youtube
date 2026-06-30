@@ -32,7 +32,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [loadSubs]);
 
   // боковая панель скрывается на странице видео и в просмотрщике Shorts (но не в сетке /shorts)
-  const isViewer = (pathname || "").startsWith("/watch/") || /^\/shorts\/[^/]+/.test(pathname || "");
+  const isViewer = (pathname || "").startsWith("/watch/") || (pathname || "").startsWith("/shorts");
   useEffect(() => { setCollapsed(isViewer); }, [isViewer]);
 
   useEffect(() => {

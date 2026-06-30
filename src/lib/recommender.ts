@@ -105,16 +105,23 @@ function shuffle<T>(arr: T[]): T[] {
 function buildFeeders(snap: Snapshot): Feeder[] {
   const ids = new Set<string>();
   for (const id of Object.keys(snap.subscriptions)) ids.add(id);
-  for (const c of topChannels(snap, 12)) ids.add(c.id);
+  for (const c of topChannels(snap, 10)) ids.add(c.id);
   const channelFeeders = shuffle([...ids].map(makeChannelFeeder));
-  const interests = topInterests(snap, 8).map((i) => i.term);
+
+  // открытия (рекомендации не из подписок): поиск по интересам + комбинации + запросы
+  const interests = topInterests(snap, 12).map((i) => i.term);
   let seeds = [...new Set([...interests, ...snap.searches])];
-  if (!seeds.length) seeds = ["технологии", "наука", "музыка"];
-  const searchFeeders = seeds.slice(0, 6).map((q) => makeSearchFeeder(q));
+  if (!seeds.length) seeds = ["интересное", "музыка", "игры", "новости", "технологии"];
+  const searchFeeders = shuffle(seeds.slice(0, 12).map((q) => makeSearchFeeder(q, { maxPages: 6 })));
+
+  // чередуем 1:1 — открытие ↔ подписка (открытия идут первыми), тренды периодически
   const mixed: Feeder[] = [];
-  let si = 0;
-  channelFeeders.forEach((cf, i) => { mixed.push(cf); if (i % 3 === 2 && si < searchFeeders.length) mixed.push(searchFeeders[si++]); });
-  while (si < searchFeeders.length) mixed.push(searchFeeders[si++]);
+  const maxLen = Math.max(channelFeeders.length, searchFeeders.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (searchFeeders[i]) mixed.push(searchFeeders[i]);
+    if (channelFeeders[i]) mixed.push(channelFeeders[i]);
+    if (i % 3 === 2) mixed.push(makeTrendingFeeder());
+  }
   return [makeTrendingFeeder(), ...mixed];
 }
 function buildFallback(snap: Snapshot): Feeder[] {
@@ -178,15 +185,22 @@ class FeedSession {
 
   assemble(n: number): Video[] {
     this.buffer.sort((a, b) => b._score - a._score);
-    const exploitN = Math.max(1, Math.round(n * 0.8));
     const page: Scored[] = [];
     const taken = new Set<string>();
     const perCh: Record<string, number> = {};
+    const isSub = (v: Scored) => (v._reasons || []).includes("из ваших подписок");
     const canAdd = (v: Scored) => (perCh[v.channelId || "?"] || 0) < 2;
     const take = (v: Scored) => { page.push(v); taken.add(v.id); perCh[v.channelId || "?"] = (perCh[v.channelId || "?"] || 0) + 1; };
-    for (const v of this.buffer) { if (page.length >= exploitN) break; if (taken.has(v.id) || !canAdd(v)) continue; take(v); }
-    const rest = this.buffer.filter((x) => !taken.has(x.id)).sort((a, b) => b._novelty - a._novelty);
-    for (const v of rest) { if (page.length >= n) break; if (!canAdd(v)) continue; take(v); }
+    // не больше ~половины страницы — из подписок, остальное — реальные рекомендации (открытия)
+    const subCap = Math.ceil(n * 0.5);
+    let subCount = 0;
+    for (const v of this.buffer) {
+      if (page.length >= n) break;
+      if (taken.has(v.id) || !canAdd(v)) continue;
+      if (isSub(v)) { if (subCount >= subCap) continue; subCount++; }
+      take(v);
+    }
+    // добор, если открытий не хватило
     if (page.length < n) for (const v of this.buffer) { if (page.length >= n) break; if (taken.has(v.id) || (perCh[v.channelId || "?"] || 0) >= 3) continue; take(v); }
     if (page.length < n) for (const v of this.buffer) { if (page.length >= n) break; if (taken.has(v.id)) continue; take(v); }
     this.buffer = this.buffer.filter((x) => !taken.has(x.id));
@@ -222,14 +236,17 @@ export async function feedPage({ sessionId = "", limit = 16 } = {}) {
   return { session: id, items, exhausted: items.length === 0 };
 }
 
-// Ряд Shorts (короткие ≤60с) для верха главной
-export async function shortsRow({ limit = 48 } = {}) {
+// Лента Shorts (≤60с): подписки + реальные рекомендации (тренды + поиск по интересам), рандом.
+export async function shortsRow({ limit = 48, exclude = [] as string[] } = {}) {
   const snap = await getSnapshot();
-  const excluded = new Set<string>([...snap.notInterested, ...snap.dislikes]);
-  const channelIds = [...new Set([...Object.keys(snap.subscriptions), ...topChannels(snap, 14).map((c) => c.id)])].slice(0, 18);
+  const excluded = new Set<string>([...snap.notInterested, ...snap.dislikes, ...exclude]);
+  const channelIds = shuffle([...new Set([...Object.keys(snap.subscriptions), ...topChannels(snap, 14).map((c) => c.id)])]).slice(0, 16);
+  const interests = topInterests(snap, 8).map((i) => i.term);
+  const shortQueries = (interests.length ? interests : ["прикол", "мемы", "обзор"]).slice(0, 6).map((t) => `${t} shorts`);
   const pulls = await Promise.all([
     yt.trendingPaged({ maxResults: 50 }).then((r) => r.items).catch(() => [] as Video[]),
     ...channelIds.map((id) => yt.channelUploads(id, { maxResults: 15 }).then((r) => r.items).catch(() => [] as Video[])),
+    ...shortQueries.map((q) => yt.search(q, { maxResults: 15 }).catch(() => [] as Video[])),
   ]);
   const cand = new Map<string, Video>();
   for (const arr of pulls) for (const v of arr) if (v.id && !excluded.has(v.id) && !cand.has(v.id)) cand.set(v.id, v);
@@ -238,8 +255,10 @@ export async function shortsRow({ limit = 48 } = {}) {
     try { const h = await yt.hydrateVideos(ids.slice(i, i + 50)); for (const [id, full] of Object.entries(h)) cand.set(id, { ...cand.get(id)!, ...full }); } catch { /* ok */ }
   }
   const shorts = [...cand.values()].filter((v) => v.duration != null && v.duration <= 60);
+  // качество + случайность: берём лучшие по score, затем перемешиваем (рандомная лента)
   shorts.sort((a, b) => scoreVideo(b, snap).score - scoreVideo(a, snap).score);
-  return yt.enrichChannelThumbs(shorts.slice(0, limit));
+  const pool = shuffle(shorts.slice(0, limit * 2)).slice(0, limit);
+  return yt.enrichChannelThumbs(pool);
 }
 
 export async function buildRelated(videoId: string) {
