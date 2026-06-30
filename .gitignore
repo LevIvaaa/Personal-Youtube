@@ -1,6 +1,11 @@
 # Dependencies
 node_modules/
 
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
 # Secrets — NEVER commit
 .env
 .env.local
@@ -11,14 +16,14 @@ toke for github.txt
 toke for github.txt:Zone.Identifier
 *.Zone.Identifier
 
-# Local personalization data (your private watch history / profile)
-data/profile.json
-data/cache/
-
 # Google Takeout exports (private personal data — never commit)
 takeout-*/
 **/Takeout/
 *.takeout
+
+# Legacy local data (pre-DB)
+data/profile.json
+data/cache/
 
 # Logs & OS
 *.log

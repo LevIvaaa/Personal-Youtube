@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Вес интереса (ключевое слово -> вес)
+model Interest {
+  term   String @id
+  weight Float
+}
+
+// Аффинити каналов: насколько пользователь любит канал
+model ChannelAffinity {
+  channelId String @id @map("channel_id")
+  weight    Float
+
+  @@map("channel_affinity")
+}
+
+// Аффинити категорий
+model CategoryAffinity {
+  categoryId String @id @map("category_id")
+  weight     Float
+
+  @@map("category_affinity")
+}
+
+// Подписки (перенесённые с YouTube)
+model Subscription {
+  channelId  String   @id @map("channel_id")
+  title      String
+  thumbnail  String   @default("")
+  importedAt DateTime @default(now()) @map("imported_at")
+
+  @@map("subscriptions")
+}
+
+// История просмотров
+model WatchHistory {
+  videoId      String   @id @map("video_id")
+  title        String
+  channelId    String?  @map("channel_id")
+  channelTitle String?  @map("channel_title")
+  categoryId   String?  @map("category_id")
+  thumbnail    String   @default("")
+  watchSeconds Int      @default(0) @map("watch_seconds")
+  duration     Int?
+  watchedAt    DateTime @default(now()) @map("watched_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([updatedAt])
+  @@map("watch_history")
+}
+
+// Понравившиеся
+model Like {
+  videoId      String   @id @map("video_id")
+  title        String
+  channelTitle String?  @map("channel_title")
+  thumbnail    String   @default("")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("likes")
+}
+
+// Дизлайки (исключаем из рекомендаций)
+model Dislike {
+  videoId String @id @map("video_id")
+
+  @@map("dislikes")
+}
+
+// «Не интересно»
+model NotInterested {
+  videoId String @id @map("video_id")
+
+  @@map("not_interested")
+}
+
+// История поиска
+model Search {
+  id  Int      @id @default(autoincrement())
+  q   String
+  at  DateTime @default(now())
+
+  @@index([at])
+  @@map("searches")
+}

@@ -1,26 +1,25 @@
-# Локальный запуск Personal YouTube в контейнере.
-# Сборка:  docker build -t personal-youtube .
-# Запуск:  docker run -p 3000:3000 -e YOUTUBE_API_KEY=... -v $(pwd)/data:/app/data personal-youtube
-FROM node:20-alpine
-
+# Production-образ Next.js. Требует внешний PostgreSQL (DATABASE_URL) и YOUTUBE_API_KEY.
+#   docker build -t personal-youtube .
+#   docker run -p 3000:3000 -e DATABASE_URL=... -e YOUTUBE_API_KEY=... personal-youtube
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Сначала зависимости — для кэша слоёв
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# Затем код
-COPY server.js ./
-COPY lib ./lib
-COPY public ./public
-COPY data/profile.seed.json ./data/profile.seed.json
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npx prisma generate && npm run build
 
+FROM node:20-alpine AS runner
+WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
 EXPOSE 3000
-
-# Простой healthcheck по /api/status
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/status > /dev/null 2>&1 || exit 1
-
-CMD ["node", "server.js"]
+CMD ["npm", "run", "start"]

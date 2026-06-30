@@ -1,97 +1,71 @@
 # Personal YouTube 🎬
 
-Личный **локальный** видеохостинг — YouTube в твоей обёртке, с идеальными рекомендациями под тебя.
-Интерфейс повторяет главную YouTube, видео играются через встроенный плеер YouTube,
-а лента строится персональным движком на основе твоей истории, лайков и интересов.
-Всё работает только локально, твой профиль никуда не уходит.
+Личный **локальный** видеохостинг — YouTube в твоей обёртке, с персональными рекомендациями.
+Интерфейс повторяет YouTube, видео играются встроенным плеером YouTube, а лента строится
+собственным движком на основе твоей истории, лайков, интересов и подписок.
+
+## Стек
+
+- **Next.js 14** (App Router) + **React 18** + **TypeScript**
+- **PostgreSQL** + **Prisma** (ORM и миграции)
+- **Tailwind CSS** (+ собственные стили под YouTube)
+- **YouTube Data API v3** — источник видео
 
 ## Возможности
 
-- ♾️ **Бесконечная лента** — листай, пока не зацепит; новые видео подгружаются на лету, без повторов
-- 🧠 **Тонкая персонализация** — движок учитывает подписки, аффинити каналов/категорий, ключевые слова интересов, свежесть, «качество» (лайки/просмотры), штрафует кликбейт; баланс «точно твоё ↔ что-то новое», чтобы не было пузыря
-- ⚡ **Реальное время** — посмотрел видео → сразу в истории; лайкнул → в понравившихся; профиль обновляется мгновенно
-- 📥 **Перенос подписок с YouTube** — из `subscriptions.csv` (Google Takeout) или списком `@handle`/ссылок
-- 🔎 Поиск по YouTube, 🔥 тренды
-- ▶️ Просмотр через встроенный плеер + похожие видео
-- 👍 Лайки, 🚫 «не интересно», 🧠 ручные интересы
-- ⚙️ Панель настройки рекомендаций (шестерёнка справа сверху)
+- ♾️ Бесконечная персональная лента (движок рекомендаций под тебя)
+- 🧠 Тонкая персонализация: подписки, аффинити каналов/категорий, интересы, свежесть, анти-кликбейт
+- ⚡ Реальное время: просмотр → сразу в истории, лайк → в понравившихся
+- 📥 Перенос подписок и всей истории с YouTube (Google Takeout)
+- 🔎 Поиск, 🔥 тренды, ▶️ просмотр + похожие
+- 📜 История с вкладками **Все / Видео / Shorts**
+- ⚙️ Меню аккаунта: настройка рекомендаций, смена аватарки, светлая/тёмная тема
 
-Чем больше смотришь и лайкаешь — тем точнее лента.
-
-### Как перенести свои подписки
-
-1. Открой <https://takeout.google.com/> → выбери только **YouTube and YouTube Music** → внутри оставь **подписки (subscriptions)** → экспортируй.
-2. В архиве найди `subscriptions.csv`.
-3. В приложении: ⚙️ → «Перенести подписки» → выбери файл (или вставь содержимое) → **Импортировать**.
-
-Альтернатива без Takeout: впиши каналы вручную по одному в строке — `@handle`, ссылку на канал или его название.
-
-### Перенести всю историю YouTube (Takeout)
-
-Если хочешь перенести **всю** историю просмотров, подписки и Watch Later одним махом:
-
-1. <https://takeout.google.com/> → экспортируй **YouTube and YouTube Music** (история + подписки + плейлисты).
-2. Распакуй архив куда-нибудь (например, в корень проекта).
-3. Запусти импорт:
-   ```bash
-   node scripts/import-takeout.js "путь/к/takeout-..."
-   ```
-   Скрипт разберёт историю просмотров (десятки тысяч записей), выделит твои любимые каналы и темы-интересы, перенесёт подписки и Watch Later — всё это попадёт в `data/profile.json` (локально, не в git).
-4. Перезапусти сервер (`npm start`) — лента подстроится под реальную историю.
-
-## Установка
+## Запуск
 
 ```bash
 npm install
-cp .env.example .env      # впиши свой YOUTUBE_API_KEY
-npm start
+cp .env.example .env       # впиши YOUTUBE_API_KEY
+
+npm run db:start           # поднимает локальный PostgreSQL (порт 5433, без sudo/Docker)
+npm run db:push            # создаёт таблицы (Prisma schema -> БД)
+
+# (необязательно) перенести старые данные из data/profile.json:
+npm run import:profile
+
+npm run dev                # http://localhost:3000
 ```
 
-Открой <http://localhost:3000>.
+Остановить БД: `npm run db:stop`.
+
+### База данных
+
+`npm run db:start` поднимает **настоящий PostgreSQL** в user-space (свой `initdb`-кластер в
+`~/.personal-youtube/pgdata`, порт 5433) — без `sudo` и Docker. Можно указать любой другой
+сервер в `DATABASE_URL` (`.env`). Схема — в [`prisma/schema.prisma`](prisma/schema.prisma),
+посмотреть данные: `npm run db:studio`.
 
 ### Где взять YOUTUBE_API_KEY (бесплатно)
 
-1. <https://console.cloud.google.com/> — создай проект
+1. <https://console.cloud.google.com/> → создай проект
 2. **APIs & Services → Library** → включи **YouTube Data API v3**
-3. **APIs & Services → Credentials → Create credentials → API key**
-4. Вставь ключ в `.env`
-
-## Приватность
-
-- `.env` (ключ API) и `data/profile.json` (твоя история/лайки) **не коммитятся** — см. `.gitignore`.
-- Видео отдаёт сам YouTube (встроенный iframe), мы их не храним.
-
-## Docker
-
-```bash
-docker build -t personal-youtube .
-docker run -p 3000:3000 -e YOUTUBE_API_KEY=твой_ключ \
-  -v "$(pwd)/data:/app/data" personal-youtube
-```
-
-Готовый образ публикуется CI в GitHub Container Registry:
-
-```bash
-docker run -p 3000:3000 -e YOUTUBE_API_KEY=твой_ключ \
-  ghcr.io/levivaaa/personal-youtube:latest
-```
-
-## CI/CD
-
-GitHub Actions (`.github/workflows/`):
-
-- **CI** (`ci.yml`) — на каждый push/PR в `main`: `npm ci`, проверка синтаксиса всех JS,
-  смоук-тест (сервер поднимается и `/api/status` + главная отвечают). Матрица Node 18 и 20.
-- **CD** (`docker.yml`) — на push в `main` и теги `v*`: сборка Docker-образа и публикация
-  в `ghcr.io` (тег `latest` для main, `vX.Y.Z` для релизов, плюс короткий SHA).
+3. **Credentials → Create credentials → API key** → впиши в `.env`
 
 ## Структура
 
 ```
-server.js          — Express-сервер и API
-lib/youtube.js     — клиент YouTube Data API + кэш (экономия квоты)
-lib/profile.js     — твой профиль: интересы, история, аффинити каналов
-lib/recommender.js — движок рекомендаций (скоринг + разнообразие)
-public/            — фронтенд (главная как у YouTube + плеер)
-data/              — локальные данные (profile.json не в git)
+prisma/schema.prisma   — модели БД (Prisma)
+src/lib/db.ts          — Prisma-клиент
+src/lib/youtube.ts     — клиент YouTube Data API + кэш (экономия квоты)
+src/lib/profile.ts     — профиль рекомендаций поверх PostgreSQL
+src/lib/recommender.ts — движок бесконечной ленты + скоринг
+src/app/api/*          — route-хендлеры (feed, search, video, subscriptions, history, event, img …)
+src/app/*              — страницы (главная, watch, history, subscriptions, liked, trending, search)
+src/components/*       — AppShell, Feed, VideoCard …
+scripts/db-start.sh    — локальный PostgreSQL
 ```
+
+## Приватность
+
+`.env`, токен GitHub, Takeout-экспорт и данные БД — **не коммитятся** (см. `.gitignore`).
+Видео отдаёт сам YouTube (iframe), мы их не храним.

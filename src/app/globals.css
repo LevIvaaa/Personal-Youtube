@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --bg: #0f0f0f;
   --bg-elev: #181818;
@@ -61,10 +65,28 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .search-btn:hover { background: var(--bg-hover); }
 
 .avatar {
-  width: 34px; height: 34px; border-radius: 50%;
+  width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0;
   background: linear-gradient(135deg, #ff5252, #ff0000);
-  display: grid; place-items: center; font-weight: 700; color: #fff; cursor: default;
+  display: grid; place-items: center; font-weight: 700; color: #fff; cursor: pointer;
+  background-size: cover; background-position: center;
 }
+.avatar:hover { filter: brightness(1.08); }
+.avatar.has-img { color: transparent; }
+
+/* меню аккаунта */
+.account { position: relative; }
+.account-menu {
+  position: absolute; top: 46px; right: 0; z-index: 60; min-width: 220px;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px;
+  padding: 8px; box-shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+.account-item {
+  display: flex; align-items: center; gap: 14px; padding: 10px 12px;
+  border-radius: 8px; cursor: pointer; color: var(--text); font-size: 14px; white-space: nowrap;
+}
+.account-item:hover { background: var(--bg-hover); }
+.account-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+.account-item b { font-weight: 600; }
 
 /* ---------- LAYOUT ---------- */
 .layout { display: flex; padding-top: var(--topbar-h); }
@@ -226,3 +248,28 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 
 /* toast */
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #e5e5e5; color: #0f0f0f; padding: 12px 18px; border-radius: 8px; font-weight: 500; z-index: 200; box-shadow: 0 4px 20px #0008; }
+
+/* ===== Светлая тема ===== */
+html.light {
+  --bg: #ffffff;
+  --bg-elev: #f2f2f2;
+  --bg-hover: #e5e5e5;
+  --text: #0f0f0f;
+  --text-dim: #606060;
+  --border: #e3e3e3;
+}
+html.light .search input { background: #fff; }
+html.light .search-btn { background: #f8f8f8; }
+html.light .search-btn:hover { background: #f0f0f0; }
+html.light .chip.active { background: #0f0f0f; color: #fff; border-color: #0f0f0f; }
+html.light .thumb-wrap,
+html.light .related-thumb,
+html.light .short-thumb { background: #e5e5e5; }
+html.light .modal-card { background: #fff; }
+html.light .interest-add input,
+html.light #subsInput,
+html.light #subsFile { background: #fff; }
+html.light .sidebar::-webkit-scrollbar-thumb,
+html.light .shorts-row::-webkit-scrollbar-thumb { background: #ccc; }
+html.light .toast { background: #0f0f0f; color: #fff; }
+html.light .account-menu { box-shadow: 0 4px 24px rgba(0,0,0,.18); }

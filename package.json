@@ -1,18 +1,37 @@
 {
   "name": "personal-youtube",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Личный локальный видеохостинг — YouTube в твоей обёртке с идеальными рекомендациями под тебя",
-  "type": "module",
+  "description": "Личный локальный видеохостинг — YouTube в твоей обёртке с идеальными рекомендациями (Next.js + Prisma + PostgreSQL)",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:start": "bash scripts/db-start.sh",
+    "db:stop": "bash scripts/db-stop.sh",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "import:profile": "tsx scripts/import-profile-json.ts"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "@prisma/client": "^5.18.0",
+    "next": "14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.40",
+    "prisma": "^5.18.0",
+    "tailwindcss": "^3.4.7",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.18"
   }
 }
